@@ -74,7 +74,7 @@ class HcfMiddleware(object):
         self._msg('Using HS_CONSUME_FROM_SLOT=%s' % self.hs_consume_from_slot)
 
         self.has_new_requests = False
-        for req in self._get_new_requests():
+        for req in self._get_new_requests(spider):
             self.has_new_requests = True
             yield req
 
@@ -134,14 +134,15 @@ class HcfMiddleware(object):
             if self.has_new_requests or not getattr(spider, 'dummy', None):
                 self.start_job(spider)
 
-    def _get_new_requests(self):
+    def _get_new_requests(self, spider):
         """ Get a new batch of links from the HCF."""
         num_batches = 0
         num_links = 0
         for num_batches, batch in enumerate(self.fclient.read(self.hs_frontier, self.hs_consume_from_slot), 1):
             for fingerprint, data in batch['requests']:
                 num_links += 1
-                yield Request(url=fingerprint, meta={'hcf_params': {'qdata': data}})
+                callback = getattr(spider, data.get('callback', 'parse'))
+                yield Request(url=fingerprint, meta={'hcf_params': {'qdata': data}}, callback=callback)
             self.batch_ids.append(batch['id'])
             if num_links >= self.hs_max_links:
                 break
